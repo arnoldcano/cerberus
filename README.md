@@ -12,8 +12,8 @@ This software must be installed first
 ## Setup the docker swarm hosts automatically
 This is how you setup the multi-host swarm automatically.
 
-#### 1. Run the setup_swarm.sh script
-#### 2. Skip to setting up the /etc/hosts file below
+#### 1. Run the `setup_swarm.sh` script
+#### 2. Skip to setting up the `/etc/hosts` file below
 
 ## Setup the docker swarm hosts manually
 This is how you setup the multi-host swarm manually.
@@ -88,18 +88,18 @@ docker $(docker-machine config cerberus-interlock) run \
     --plugin haproxy start
 ```
 
-## Setup the /etc/hosts file locally for interlock
+## Setup the `/etc/hosts` file locally for interlock
 This is how you get interlock to load balance over your **Cerberus** instances.
 
 #### 1. Get the ip address of the interlock host
 ```
 docker-machine ip cerberus-interlock
 ```
-#### 2. Add the ip address and domain to /etc/hosts
+#### 2. Add the ip address and domain to `/etc/hosts`
 ```
 <cerberus-interlock-ip> cerberus.swarm.local
 ```
-#### 3. Go to http://stats:interlock@cerberus.swarm.local/haproxy?stats in your browser
+#### 3. Go to `http://stats:interlock@cerberus.swarm.local/haproxy?stats` in your browser
 
 ## Run the cerberus sample application
 This compiles the **Cerberus** application statically so that the container sizes are small.
@@ -120,7 +120,7 @@ docker-compose up -d
 ```
 docker-compose logs
 ```
-#### 5. Go to http://cerberus.swarm.local/stats in your browser
+#### 5. Go to `http://cerberus.swarm.local/stats` in your browser
 
 ## Scaling and load testing the cerberus application
 This is how you can scale the **Cerberus** instances in the swarm and load test the performance.
