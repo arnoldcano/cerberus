@@ -1,6 +1,6 @@
 # Cerberus
 
-**Cerberus** is an example multi-host Docker Swarm using Docker Machine, Docker Compose, Consul, and Interlock.
+**Cerberus** is an example multi-host Docker Swarm using Docker Machine, Docker Compose, Docker Networking, Consul, and Interlock.
 
 ## Prerequisites
 This software must be installed first
