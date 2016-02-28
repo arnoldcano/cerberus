@@ -64,17 +64,21 @@ docker-machine create \
     --engine-opt="cluster-advertise=eth1:2376" \
     cerberus-node-2
 ```
-#### 6. Load the environment variables for the swarm master
+#### 6. Check the hosts were added to the swarm in consul
+```
+docker run swarm list consul://$(docker-machine ip cerberus-consul):8500
+```
+#### 7. Load the environment variables for the swarm master
 ```
 eval $(docker-machine env --swarm cerberus-master)
 ```
-#### 7. Create the host for interlock
+#### 8. Create the host for interlock
 ```
 docker-machine create \
     -d virtualbox \
     cerberus-interlock
 ```
-#### 8. Run interlock for load balancing using haproxy
+#### 9. Run interlock for load balancing using haproxy
 ```
 docker $(docker-machine config cerberus-interlock) run \
     -d \
