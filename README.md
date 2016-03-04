@@ -2,6 +2,8 @@
 
 **Cerberus** is an example multi-host Docker Swarm using Docker Machine, Docker Compose, Docker Networking, Consul, and Interlock.
 
+![cerberus diagram](/cerberus_diagram.png?raw=true "Cerberus Diagram")
+
 ## Prerequisites
 This software must be installed first
 
@@ -52,6 +54,7 @@ docker-machine create \
     --swarm-discovery="consul://$(docker-machine ip cerberus-consul):8500" \
     --engine-opt="cluster-store=consul://$(docker-machine ip cerberus-consul):8500" \
     --engine-opt="cluster-advertise=eth1:2376" \
+    --engine-label="swarm=yes" \
     cerberus-node-1
 ```
 #### 5. Create the host for the second swarm node
@@ -62,23 +65,35 @@ docker-machine create \
     --swarm-discovery="consul://$(docker-machine ip cerberus-consul):8500" \
     --engine-opt="cluster-store=consul://$(docker-machine ip cerberus-consul):8500" \
     --engine-opt="cluster-advertise=eth1:2376" \
+    --engine-label="swarm=yes" \
     cerberus-node-2
 ```
-#### 6. Check the hosts were added to the swarm in consul
+#### 6. Create the host for the third swarm node
+```
+docker-machine create \
+    -d virtualbox \
+    --swarm \
+    --swarm-discovery="consul://$(docker-machine ip cerberus-consul):8500" \
+    --engine-opt="cluster-store=consul://$(docker-machine ip cerberus-consul):8500" \
+    --engine-opt="cluster-advertise=eth1:2376" \
+    --engine-label="swarm=yes" \
+    cerberus-node-3
+```
+#### 7. Check the hosts were added to the swarm in consul
 ```
 docker run swarm list consul://$(docker-machine ip cerberus-consul):8500
 ```
-#### 7. Load the environment variables for the swarm master
+#### 8. Load the environment variables for the swarm master
 ```
 eval $(docker-machine env --swarm cerberus-master)
 ```
-#### 8. Create the host for interlock
+#### 9. Create the host for interlock
 ```
 docker-machine create \
     -d virtualbox \
     cerberus-interlock
 ```
-#### 9. Run interlock for load balancing using haproxy
+#### 10. Run interlock for load balancing using haproxy
 ```
 docker $(docker-machine config cerberus-interlock) run \
     -d \
