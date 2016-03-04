@@ -1,13 +1,22 @@
 package main
 
 import (
-	"fmt"
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
 
 	"github.com/garyburd/redigo/redis"
 )
+
+type stats struct {
+	containers []container `json:"containers"`
+}
+
+type container struct {
+	hostname string `json:"hostname"`
+	hits     int    `json:"hits"`
+}
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
@@ -23,17 +32,18 @@ func statsHandler(w http.ResponseWriter, r *http.Request) {
 	h, _ := os.Hostname()
 	c.Do("INCR", h)
 
-	w.Header().Set("Content-Type", "text/html; charset=UTF-8")
-	fmt.Fprintf(w, "<style>table { border-collapse: collapse; } table, th, td { border: 1px solid black; }</style>")
-	fmt.Fprintf(w, "<h3>Stats</h3>")
-	fmt.Fprintf(w, "<table><tr><th>Container</th><th>Hits</th></tr>")
 	keys, _ := redis.Strings(c.Do("KEYS", "*"))
-	for _, k := range keys {
+	containers := make([]container, len(keys))
+	for i, k := range keys {
 		v, _ := redis.Int(c.Do("GET", k))
-		fmt.Fprintf(w, "<tr><td>%s</td>", k)
-		fmt.Fprintf(w, "<td>%d</td></tr>", v)
+		containers[i] = container{hostname: k, hits: v}
 	}
-	fmt.Fprintf(w, "</table>")
+	stats := &stats{containers: containers}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(stats); err != nil {
+		log.Fatal(err)
+	}
 }
 
 func main() {

@@ -28,6 +28,7 @@ docker-machine create \
     --swarm-discovery="consul://$(docker-machine ip cerberus-consul):8500" \
     --engine-opt="cluster-store=consul://$(docker-machine ip cerberus-consul):8500" \
     --engine-opt="cluster-advertise=eth1:2376" \
+    --engine-label="swarm=yes" \
     cerberus-node-1
 
 docker-machine create \
@@ -36,7 +37,17 @@ docker-machine create \
     --swarm-discovery="consul://$(docker-machine ip cerberus-consul):8500" \
     --engine-opt="cluster-store=consul://$(docker-machine ip cerberus-consul):8500" \
     --engine-opt="cluster-advertise=eth1:2376" \
+    --engine-label="swarm=yes" \
     cerberus-node-2
+
+docker-machine create \
+    -d virtualbox \
+    --swarm \
+    --swarm-discovery="consul://$(docker-machine ip cerberus-consul):8500" \
+    --engine-opt="cluster-store=consul://$(docker-machine ip cerberus-consul):8500" \
+    --engine-opt="cluster-advertise=eth1:2376" \
+    --engine-label="swarm=yes" \
+    cerberus-node-3
 
 docker-machine create \
     -d virtualbox \

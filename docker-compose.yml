@@ -7,12 +7,15 @@ services:
     ports:
       - "8080"
     environment:
+      - constraint:swarm==yes
       - INTERLOCK_DATA={"hostname":"cerberus","domain":"swarm.local"}
 
   redis:
     image: redis
     ports:
       - "6379:6379"
+    environment:
+      - constraint:swarm==yes
 
 networks:
   default:
