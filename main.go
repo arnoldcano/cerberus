@@ -2,52 +2,71 @@ package main
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/garyburd/redigo/redis"
 )
 
-type stats struct {
-	containers []container `json:"containers"`
+var pool *redis.Pool
+
+type Stats struct {
+	Containers []Container `json:"containers"`
 }
 
-type container struct {
-	hostname string `json:"hostname"`
-	hits     int    `json:"hits"`
+type Container struct {
+	Hostname string `json:"hostname"`
+	Hits     int    `json:"hits"`
 }
 
-func indexHandler(w http.ResponseWriter, r *http.Request) {
+func IndexHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func statsHandler(w http.ResponseWriter, r *http.Request) {
-	c, err := redis.Dial("tcp", "redis:6379")
-	if err != nil {
-		log.Fatal(err)
-	}
+func StatsHandler(w http.ResponseWriter, r *http.Request) {
+	pool := newRedisPool("redis:6379")
+	c := pool.Get()
 	defer c.Close()
 
 	h, _ := os.Hostname()
 	c.Do("INCR", h)
 
 	keys, _ := redis.Strings(c.Do("KEYS", "*"))
-	containers := make([]container, len(keys))
+	containers := make([]Container, len(keys))
 	for i, k := range keys {
 		v, _ := redis.Int(c.Do("GET", k))
-		containers[i] = container{hostname: k, hits: v}
+		containers[i] = Container{Hostname: k, Hits: v}
 	}
-	stats := &stats{containers: containers}
+	stats := &Stats{Containers: containers}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(stats); err != nil {
-		log.Fatal(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 }
 
 func main() {
-	http.HandleFunc("/", indexHandler)
-	http.HandleFunc("/stats", statsHandler)
+	http.HandleFunc("/", IndexHandler)
+	http.HandleFunc("/stats", StatsHandler)
 	http.ListenAndServe(":8080", nil)
+}
+
+func newRedisPool(server string) *redis.Pool {
+	return &redis.Pool{
+		MaxIdle:     3,
+		IdleTimeout: 240 * time.Second,
+		Dial: func() (redis.Conn, error) {
+			c, err := redis.Dial("tcp", server)
+			if err != nil {
+				return nil, err
+			}
+			return c, err
+		},
+		TestOnBorrow: func(c redis.Conn, t time.Time) error {
+			_, err := c.Do("PING")
+			return err
+		},
+	}
 }

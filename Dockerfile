@@ -1,3 +1,7 @@
 FROM scratch
+
+MAINTAINER arnoldcano@yahoo.com
+
 COPY main /
-CMD ["/main"]
+
+ENTRYPOINT ["/main"]

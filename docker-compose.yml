@@ -1,22 +1,37 @@
 version: "2"
 
 services:
+  nginx:
+    build: nginx
+    ports:
+      - "80:80"
+    environment:
+      - SERVICE_NAME=cerberus_web
+      - CONSUL_IP=$CONSUL_IP
+    depends_on:
+      - web
+    networks:
+      - frontend_net
+
   web:
     build: .
-    command: ./main
     ports:
       - "8080"
-    environment:
-      - constraint:swarm==yes
-      - INTERLOCK_DATA={"hostname":"cerberus","domain":"swarm.local"}
+    depends_on:
+      - redis
+    networks:
+      - frontend_net
+      - backend_net
 
   redis:
     image: redis
     ports:
-      - "6379:6379"
-    environment:
-      - constraint:swarm==yes
+      - "6379"
+    networks:
+      - backend_net
 
 networks:
-  default:
+  frontend_net:
+    driver: overlay
+  backend_net:
     driver: overlay

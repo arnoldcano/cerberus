@@ -1,8 +1,6 @@
 # Cerberus
 
-**Cerberus** is an example multi-host Docker Swarm using Docker Machine, Docker Compose, Docker Networking, Consul, and Interlock.
-
-![cerberus diagram](/cerberus_diagram.png?raw=true "Cerberus Diagram")
+**Cerberus** is an example multi-host Docker Swarm using Docker Machine, Docker Compose, Consul, Consul-Template, and Registrator.
 
 ## Prerequisites
 This software must be installed first
@@ -15,7 +13,7 @@ This software must be installed first
 This is how you setup the multi-host swarm automatically.
 
 #### 1. Run the `setup_swarm.sh` script
-#### 2. Skip to setting up the `/etc/hosts` file below
+#### 2. Skip to running the cerberus sample application below
 
 ## Setup the docker swarm hosts manually
 This is how you setup the multi-host swarm manually.
@@ -26,100 +24,64 @@ docker-machine create \
     -d virtualbox \
     cerberus-consul
 ```
-#### 2. Run consul for service discovery
+#### 2. Set CONSUL_IP environment variable
+```
+export CONSUL_IP=$(docker-machine ip cerberus-consul)
+```
+#### 3. Run consul for service discovery
 ```
 docker $(docker-machine config cerberus-consul) run \
-    -d \
-    -p "8500:8500" \
-    progrium/consul \
-    -server \
-    -bootstrap
+  -d \
+  -p 8500:8500 \
+  -h consul \
+  --restart always \
+  gliderlabs/consul-server -server -bootstrap
 ```
-#### 3. Create the host for the swarm master
+#### 4. Create the host for the swarm master
 ```
 docker-machine create \
     -d virtualbox \
     --swarm \
     --swarm-master \
-    --swarm-discovery="consul://$(docker-machine ip cerberus-consul):8500" \
-    --engine-opt="cluster-store=consul://$(docker-machine ip cerberus-consul):8500" \
+    --swarm-discovery="consul://$CONSUL_IP:8500" \
+    --engine-opt="cluster-store=consul://$CONSUL_IP:8500" \
     --engine-opt="cluster-advertise=eth1:2376" \
     cerberus-master
 ```
-#### 4. Create the host for the first swarm node
+#### 5. Run registrator for the swarm master
+```
+docker $(docker-machine config cerberus-master) run \
+  -d \
+  --name=cerberus_registrator \
+  -h $(docker-machine ip cerberus-master) \
+  --volume=/var/run/docker.sock:/tmp/docker.sock \
+  gliderlabs/registrator:latest \
+  consul://${CONSUL_IP}:8500
+```
+#### 6. Create the host for the swarm slave
 ```
 docker-machine create \
     -d virtualbox \
     --swarm \
-    --swarm-discovery="consul://$(docker-machine ip cerberus-consul):8500" \
-    --engine-opt="cluster-store=consul://$(docker-machine ip cerberus-consul):8500" \
+    --swarm-discovery="consul://$CONSUL_IP:8500" \
+    --engine-opt="cluster-store=consul://$CONSUL_IP:8500" \
     --engine-opt="cluster-advertise=eth1:2376" \
-    --engine-label="swarm=yes" \
-    cerberus-node-1
+    cerberus-slave
 ```
-#### 5. Create the host for the second swarm node
+#### 7. Run registrator for the swarm slave
 ```
-docker-machine create \
-    -d virtualbox \
-    --swarm \
-    --swarm-discovery="consul://$(docker-machine ip cerberus-consul):8500" \
-    --engine-opt="cluster-store=consul://$(docker-machine ip cerberus-consul):8500" \
-    --engine-opt="cluster-advertise=eth1:2376" \
-    --engine-label="swarm=yes" \
-    cerberus-node-2
-```
-#### 6. Create the host for the third swarm node
-```
-docker-machine create \
-    -d virtualbox \
-    --swarm \
-    --swarm-discovery="consul://$(docker-machine ip cerberus-consul):8500" \
-    --engine-opt="cluster-store=consul://$(docker-machine ip cerberus-consul):8500" \
-    --engine-opt="cluster-advertise=eth1:2376" \
-    --engine-label="swarm=yes" \
-    cerberus-node-3
-```
-#### 7. Check the hosts were added to the swarm in consul
-```
-docker run swarm list consul://$(docker-machine ip cerberus-consul):8500
+docker $(docker-machine config cerberus-slave) run \
+  -d \
+  --name=cerberus_registrator \
+  -h $(docker-machine ip cerberus-slave) \
+  --volume=/var/run/docker.sock:/tmp/docker.sock \
+  gliderlabs/registrator:latest \
+  consul://${CONSUL_IP}:8500
 ```
 #### 8. Load the environment variables for the swarm master
 ```
 eval $(docker-machine env --swarm cerberus-master)
 ```
-#### 9. Create the host for interlock
-```
-docker-machine create \
-    -d virtualbox \
-    cerberus-interlock
-```
-#### 10. Run interlock for load balancing using haproxy
-```
-docker $(docker-machine config cerberus-interlock) run \
-    -d \
-    -p "80:80" \
-    -v $DOCKER_CERT_PATH:/certs:ro \
-    ehazlett/interlock \
-    --swarm-url $DOCKER_HOST \
-    --swarm-tls-ca-cert=/certs/ca.pem \
-    --swarm-tls-cert=/certs/server.pem \
-    --swarm-tls-key=/certs/server-key.pem \
-    --plugin haproxy start
-```
-
-## Setup the `/etc/hosts` file locally for interlock
-This is how you get interlock to load balance over your **Cerberus** instances.
-
-#### 1. Get the ip address of the interlock host
-```
-docker-machine ip cerberus-interlock
-```
-#### 2. Add the ip address and domain to `/etc/hosts`
-```
-<cerberus-interlock-ip> cerberus.swarm.local
-```
-#### 3. Go to `http://stats:interlock@cerberus.swarm.local/haproxy?stats` in your browser
-
 ## Run the cerberus sample application
 This compiles the **Cerberus** application statically so that the container sizes are small.
 
@@ -139,14 +101,22 @@ docker-compose up -d
 ```
 docker-compose logs
 ```
-#### 5. Go to `http://cerberus.swarm.local/stats` in your browser
-
+## Check the services in consul
+#### 1. Determine the ip address for consul
+```
+docker ps | grep nginx
+```
+#### 2. Set the NGINX_IP environment variable
+```
+export NGINX_IP=(ip address from above)
+```
+#### 3. Go to `http://$NGINX_IP:8500/ui/` in your browser
 ## Scaling and load testing the cerberus application
 This is how you can scale the **Cerberus** instances in the swarm and load test the performance.
 
 #### 1. Load test cerberus using ab
 ```
-ab -n 1000 -c 50 http://cerberus.swarm.local/stats/
+ab -n 1000 -c 50 -l http://$NGINX_IP/stats
 ```
 #### 2. Scale cerberus up!
 ```
@@ -154,5 +124,5 @@ docker-compose scale web=10
 ```
 #### 3. Load test cerberus again
 ```
-ab -n 1000 -c 50 http://cerberus.swarm.local/stats/
+ab -n 1000 -c 50 -l http://$NGINX_IP/stats
 ```
