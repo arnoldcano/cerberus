@@ -2,58 +2,48 @@
 
 set -e
 
-#setup service discovery
-docker-machine create \
-    -d virtualbox \
-    cerberus-consul
+docker-machine create -d virtualbox cerberus-consul
 
-export CONSUL_IP=$(docker-machine ip cerberus-consul)
+eval "$(docker-machine env cerberus-consul)"
+docker run -d \
+    -p "8500:8500" \
+    -h "consul" \
+    progrium/consul -server -bootstrap
 
-#start consul
-docker $(docker-machine config cerberus-consul) run \
-  -d \
-  -p 8500:8500 \
-  -h consul \
-  --restart always \
-  gliderlabs/consul-server -server -bootstrap
-
-#setup swarm master
-docker-machine create \
-    -d virtualbox \
-    --swarm \
-    --swarm-master \
-    --swarm-discovery="consul://$CONSUL_IP:8500" \
-    --engine-opt="cluster-store=consul://$CONSUL_IP:8500" \
+docker-machine create -d virtualbox \
+    --swarm --swarm-master \
+    --swarm-discovery="consul://$(docker-machine ip cerberus-consul):8500" \
+    --engine-opt="cluster-store=consul://$(docker-machine ip cerberus-consul):8500" \
     --engine-opt="cluster-advertise=eth1:2376" \
     cerberus-master
 
-#start swarm master registrator
-docker $(docker-machine config cerberus-master) run \
-  -d \
-  --name=cerberus_registrator \
-  -h $(docker-machine ip cerberus-master) \
-  --volume=/var/run/docker.sock:/tmp/docker.sock \
-  gliderlabs/registrator:latest \
-  consul://${CONSUL_IP}:8500
-
-#setup swarm slave
-docker-machine create \
-    -d virtualbox \
+docker-machine create -d virtualbox \
     --swarm \
-    --swarm-discovery="consul://$CONSUL_IP:8500" \
-    --engine-opt="cluster-store=consul://$CONSUL_IP:8500" \
+    --swarm-discovery="consul://$(docker-machine ip cerberus-consul):8500" \
+    --engine-opt="cluster-store=consul://$(docker-machine ip cerberus-consul):8500" \
     --engine-opt="cluster-advertise=eth1:2376" \
     cerberus-slave
 
-#start swarm slave registrator
-docker $(docker-machine config cerberus-slave) run \
-  -d \
-  --name=cerberus_registrator \
-  -h $(docker-machine ip cerberus-slave) \
-  --volume=/var/run/docker.sock:/tmp/docker.sock \
-  gliderlabs/registrator:latest \
-  consul://${CONSUL_IP}:8500
-
-#start swarm services
 eval $(docker-machine env --swarm cerberus-master)
-docker-compose -f docker-compose.yml up -d
+docker network create -d overlay \
+    --subnet=10.0.9.0/24 \
+    cerberus-net
+
+docker $(docker-machine config cerberus-master) run \
+    -d \
+    -p 80:80 -p 8080:8080 \
+    --net=cerberus-net \
+    -v /Users/arnoldcano/.docker/machine/machines/cerberus-master/:/ssl \
+    traefik \
+    -l DEBUG \
+    -c /dev/null \
+    --docker \
+    --docker.domain=docker.local \
+    --docker.endpoint=tcp://$(docker-machine ip cerberus-master):3376 \
+    --docker.tls \
+    --docker.tls.ca=/ssl/ca.pem \
+    --docker.tls.cert=/ssl/server.pem \
+    --docker.tls.key=/ssl/server-key.pem \
+    --docker.tls.insecureSkipVerify \
+    --docker.watch \
+    --web
